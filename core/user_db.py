@@ -5,6 +5,7 @@ import sqlite3
 # подключение к базе
 def get_connection():
 	return sqlite3.connect('data/users.db')
+#------------------------------------------------------------------------------------------------------------------
 
 # инициализация таблицы users
 def init_db():
@@ -48,5 +49,22 @@ def get_user(user_id: int):
 	conn.close()
 	return user
 
+# поставить лайк
+def add_like(user_id:int):
+	conn = get_connection()
+	cur = conn.cursor()
+
+	cur.execute("UPDATE users SET likes = likes + 1 WHERE id = ?", (user_id, ))
+	conn.commit()
+	conn.close()
+
+# поставить дизлайк
+def add_dislike(user_id:int):
+	conn = get_connection()
+	cur = conn.cursor()
+
+	cur.execute("UPDATE users SET dislikes = dislikes + 1 WHERE id = ?", (user_id, ))
+	conn.commit()
+	conn.close()
 
 

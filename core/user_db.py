@@ -19,9 +19,15 @@ def init_db():
 	id INTEGER PRIMARY KEY,
 	name TEXT,
 	likes INTEGER DEFAULT 0,
-	dislikes  INTEGER DEFAULT 0
+	dislikes  INTEGER DEFAULT 0,
+	mode TEXT DEFAULT 'assist'
 	)
 	""")
+	# Добавляем столбец mode, если он не существует
+	try:
+		cur.execute("ALTER TABLE users ADD COLUMN mode TEXT DEFAULT 'assist'")
+	except sqlite3.OperationalError:
+		pass
 
 # таблица диалогов
 	cur.execute("""
@@ -114,4 +120,24 @@ def get_dialogs(user_id: int, limit: int = 15):
 	rows = cur.fetchall()
 	conn.close()
 	return rows[::-1]
+#------------------------------------------------------------------------------------------------------------------
 
+
+#Установка мода общения
+def set_mode(user_id:int, mode: str):
+	conn = get_connection()
+	cur = conn.cursor()
+	cur.execute("UPDATE users SET mode = ? WHERE id = ?", (mode, user_id))
+	conn.commit()
+	conn.close()
+#------------------------------------------------------------------------------------------------------------------
+
+
+# Запрос мода общения
+def get_mode(user_id: int):
+	conn = get_connection()
+	cur = conn.cursor()
+	cur.execute("SELECT mode FROM users WHERE id = ?", (user_id, ))
+	row = cur.fetchone()
+	conn.close()
+	return row[0] if row else 'assist'

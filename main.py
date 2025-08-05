@@ -5,7 +5,7 @@ from aiogram.filters import Command
 from aiogram import Bot, Dispatcher, types
 
 from config import BOT_TOKEN
-from core.user_db import register_user, get_user, init_db, add_like, add_dislike
+from core.user_db import register_user, get_user, init_db, add_like, add_dislike, save_message, get_dialogs
 
 # создаём экземпляр бота
 
@@ -61,6 +61,39 @@ async def dislike_command(message: types.Message):
 	await message.answer(f"Теперь у тебя {user[2]} лайков и {user[3]} дизлайков.")
 
 
+# обработчик команды /chat
+@dp.message(Command("chat"))
+async def chat_command(message: types.Message):
+	#имитируем диалог с самим ботом (позже будет с кандидатами)
+	save_message(message.from_user.id, 'user', "Начал чат с ботом")
+	await message.answer("📩 Диалог начат! Пиши сообщения, я их сохраню.")
+
+
+# обработчик команды /history
+@dp.message(Command("history"))
+async def history_command(message: types.Message):
+	"""История сообщений"""
+	dialog = get_dialogs(message.from_user.id, limit = 5)
+
+	if dialog:
+		text = "📝 Последние сообщения:\n"
+		for sender, msg, time in dialog:
+			text += f"[{time}] {sender}: {msg}\n]"
+		await message.answer(text)
+	else:
+		await message.answer("История пуста")
+
+
+
+# ловим любое другое сообщение
+@dp.message()
+async def handle_message(message: types.Message):
+	"""Захватчик всех сообщений с чата"""
+	save_message(message.from_user.id, 'user', message.text)	# сохраняем в историю
+
+	# бот отвечает (пока просто эхо)
+	save_message(message.from_user.id, 'bot', f"Ты сказал: {message.text}")
+	await message.answer(f"🤖 Эхо: {message.text}")
 
 
 #------------------------------------------------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 #main.py
+
 import asyncio
 
 from aiogram.filters import Command
@@ -6,7 +7,7 @@ from aiogram import Bot, Dispatcher, types
 
 from config import BOT_TOKEN
 from core.user_db import register_user, get_user, init_db, add_like, add_dislike, save_message, get_dialogs
-
+from core.ai_engine import generate_reply
 # создаём экземпляр бота
 
 bot = Bot(token = BOT_TOKEN)
@@ -78,22 +79,32 @@ async def history_command(message: types.Message):
 	if dialog:
 		text = "📝 Последние сообщения:\n"
 		for sender, msg, time in dialog:
-			text += f"[{time}] {sender}: {msg}\n]"
+			text += f"[{time}] {sender}: {msg}\n"
 		await message.answer(text)
 	else:
 		await message.answer("История пуста")
-
 
 
 # ловим любое другое сообщение
 @dp.message()
 async def handle_message(message: types.Message):
 	"""Захватчик всех сообщений с чата"""
-	save_message(message.from_user.id, 'user', message.text)	# сохраняем в историю
 
-	# бот отвечает (пока просто эхо)
-	save_message(message.from_user.id, 'bot', f"Ты сказал: {message.text}")
-	await message.answer(f"🤖 Эхо: {message.text}")
+	dialog_history = get_dialogs(message.from_user.id, limit = 5)
+	# берём историю (последние 5 сообщений)
+	history = [
+		{"role": "user" if sender == "user" else "assistant", "content": msg}
+		for sender, msg, _ in dialog_history
+	]
+
+	# генерируем обращение пользователя
+	save_message(message.from_user.id, 'user', message.text)
+
+	# генерируем ответ GPT 	и сохраняем ответ бота
+	reply = generate_reply(history, message.text)
+	save_message(message.from_user.id, 'bot', reply)
+
+	await message.answer(reply)
 
 
 #------------------------------------------------------------------------------------------------------------------

@@ -29,16 +29,24 @@ def init_db():
 	except sqlite3.OperationalError:
 		pass
 
+	# Удаляем старую таблицу (для тестирования)
+	cur.execute("DROP TABLE IF EXISTS dialogs")
+
 # таблица диалогов
 	cur.execute("""
 	CREATE TABLE IF NOT EXISTS dialogs(
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	user_id INTEGER,
-	sender TEXT,
-	message TEXT,
-	timestamp INTEGER DEFAULT CURRENT_TIMESTAMP
+	user_id INTEGER NOT NULL,
+	partner_name TEXT NOT NULL,
+	sender TEXT NOT NULL,
+	message TEXT NOT NULL,
+	timestamp DATATIME DEFAULT CURRENT_TIMESTAMP
 	)
 	""")
+	try:
+		cur.execute("ALTER TABLE dialogs ADD COLUMN partner_name TEXT DEFAULT ''")
+	except sqlite3.OperationalError:
+		pass
 
 	conn.commit()
 	conn.close()
@@ -94,12 +102,13 @@ def add_dislike(user_id:int):
 #------------------------------------------------------------------------------------------------------------------
 
 #сохранение сообщений
-def save_message(user_id: int, sender: str, message: str):
+def save_message(user_id: int, partner: str, sender: str, message: str):
 	conn = get_connection()
 	cur = conn.cursor()
 
-	cur.execute("INSERT INTO dialogs (user_id, sender, message) VALUES (?, ?, ?)",
-	            (user_id, sender, message)
+	print(f"Сохранение сообщения: user_id={user_id}, partner={partner}, sender={sender}, message={message}")
+	cur.execute("INSERT INTO dialogs (user_id, partner_name, sender, message) VALUES (?, ?, ?, ?)",
+	            (user_id,partner, sender, message)
 	            )
 
 	conn.commit()
@@ -109,16 +118,28 @@ def save_message(user_id: int, sender: str, message: str):
 #------------------------------------------------------------------------------------------------------------------
 
 # получить историю сообщений с пользователем
-def get_dialogs(user_id: int, limit: int = 15):
+def get_dialogs(user_id: int, partner:str, limit: int = 15):
 	conn = get_connection()
 	cur = conn.cursor()
 
-	cur.execute("SELECT sender, message, timestamp FROM dialogs WHERE user_id = ? ORDER BY id DESC LIMIT ?",
-	            (user_id, limit)
-	)
+	# Проверяем, есть ли диалог с таким партнером
+	cur.execute("SELECT 1 FROM dialogs WHERE user_id = ? AND partner_name = ? LIMIT 1",
+	            (user_id,partner))
+	if not cur.fetchone():
+		conn.close()
+		return []
 
+	# Получаем историю сообщений
+	cur.execute("""SELECT sender, message, timestamp 
+						FROM dialogs 
+						WHERE user_id = ? AND partner_name = ? 
+						ORDER BY timestamp DESC 
+						LIMIT ?""",
+	            (user_id, partner, limit)
+	)
 	rows = cur.fetchall()
 	conn.close()
+	print(f"Получено сообщений для user_id={user_id}, partner={partner}: {len(rows)}")  # Логирование
 	return rows[::-1]
 #------------------------------------------------------------------------------------------------------------------
 
@@ -141,3 +162,15 @@ def get_mode(user_id: int):
 	row = cur.fetchone()
 	conn.close()
 	return row[0] if row else 'assist'
+
+#Функция для получения списка всех партнеров
+def get_partners(user_id: int) -> list:
+	conn = get_connection()
+	cur = conn.cursor()
+	cur.execute("""
+	SELECT DISTINCT partner_name FROM dialogs
+	WHERE user_id = ?
+	""", (user_id,))
+	partners = [row[0] for row in cur.fetchall()]
+	conn.close()
+	return partners

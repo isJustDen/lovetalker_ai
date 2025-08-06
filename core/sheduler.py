@@ -30,14 +30,13 @@ async def send_delayed_message(bot, chat_id:int, text: str, delay: int=60):
 	await bot.send_message(chat_id, text)
 
 def schedule_reminder(bot, chat_id:int, text: str):
-	"""Отправляет одно напоминание в случайное время (от 5 до 16 часов с текущего момента)"""
+	"""Отправляет одно напоминание в случайное время (от 3 до 12 часов с текущего момента)"""
 	random_hours = random.randint(3, 12)
-	run_time = datetime.now() + timedelta(hours=random_hours)
 
 	scheduler.add_job(
 		send_delayed_message,
-		trigger='date',
-		run_date = run_time,
+		trigger='interval',
+		hours = random_hours,
 		args=[bot, chat_id, text]
 	)
 

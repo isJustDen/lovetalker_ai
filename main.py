@@ -11,6 +11,7 @@ from aiogram import Bot, Dispatcher, types
 
 
 from config import BOT_TOKEN
+from core.sheduler import init_scheduler, schedule_message
 from core.user_db import register_user, get_user, init_db, add_like, add_dislike, save_message, get_dialogs, set_mode, \
 	get_mode
 from core.ai_engine import generate_reply
@@ -155,19 +156,14 @@ async def handle_message(message: types.Message):
 
 	elif mode == "auto":
 		# Полный автопилот
-
-		await bot.send_chat_action(message.chat.id, "typing")	# статус "печатает..."
-		await asyncio.sleep(random.uniform(2, 10.0))
-
 		reply = humanize_text(generate_reply(history, message.text, user_id=message.from_user.id))
-
-		await bot.send_chat_action(message.chat.id, "typing")	# статус "печатает..."
-		await asyncio.sleep(random.uniform(5, 15.0))
-
 		save_message(message.from_user.id, "bot", reply)
 
+		delay = random.randint(120, 300)
+		schedule_message(bot, message.chat.id, f"{reply}", delay=delay)
+
 		await bot.send_chat_action(message.chat.id, "typing")	# статус "печатает..."
-		await asyncio.sleep(random.uniform(2, 25.0))
+		await asyncio.sleep(random.uniform(2, 59.0))
 
 		await message.answer(f"🤖 {reply}")
 
@@ -176,6 +172,7 @@ async def handle_message(message: types.Message):
 # функция запуска бота
 async def main():
 	init_db()
+	init_scheduler()
 	print("Бот запущен...")
 	await dp.start_polling(bot, skip_updates=True)
 

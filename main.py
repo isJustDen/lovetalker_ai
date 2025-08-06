@@ -14,9 +14,9 @@ from aiogram import Bot, Dispatcher, types
 from config import BOT_TOKEN
 from core.sheduler import init_scheduler, schedule_message, schedule_reminder
 from core.user_db import register_user, get_user, init_db, add_like, add_dislike, save_message, get_dialogs, set_mode, \
-	get_mode, get_connection, get_partners, add_partner
+	get_mode, get_connection, get_partners, add_partner, update_partner_style
 from core.ai_engine import generate_reply
-from core.utils import humanize_text
+from core.utils import humanize_text, detect_style
 
 # создаём экземпляр бота
 bot = Bot(token = BOT_TOKEN)
@@ -187,7 +187,6 @@ async def partner_command(message: types.Message):
 async def handle_message(message: types.Message):
 	"""Захватчик всех сообщений с чата"""
 
-
 	# Определяем партнера - берем последнего из истории
 	conn = get_connection()
 	cur = conn.cursor()
@@ -200,11 +199,16 @@ async def handle_message(message: types.Message):
 	last_partner = cur.fetchone()
 	partner = last_partner[0] if last_partner else "bot"
 
+	args = message.text.split(maxsplit=1)
 
 	# Сохраняем сообщение пользователя
 	save_message(message.from_user.id, partner, 'user', message.text)
 	# получаем режим пользователя
-	mode = get_mode(message.from_user.id)
+	mode = get_mode(message.from_user.id) #ручное выставление стиля общения
+
+	#автоматическое определяе стиля по сообщению
+	new_style = detect_style(message.text)
+	update_partner_style(message.from_user.id, partner, new_style)
 
 	# получаем историю для контекста
 	dialog_history = get_dialogs(message.from_user.id, partner, limit = 10)
@@ -226,13 +230,13 @@ async def handle_message(message: types.Message):
 
 	elif mode == "semi-auto":
 		# GPT отвечает, но можно поправить
-		reply = generate_reply(history, message.text, user_id=message.from_user.id)
+		reply = generate_reply(history, message.text, user_id=message.from_user.id, partner=partner)
 		save_message(message.from_user.id, partner,"bot", reply)
 		await message.answer(f"⚡ Ответ: {reply}\n\n(Можешь переписать вручную)")
 
 	elif mode == "auto":
 		# Полный автопилот
-		reply = humanize_text(generate_reply(history, message.text, user_id=message.from_user.id))
+		reply = humanize_text(generate_reply(history, message.text, user_id=message.from_user.id, partner=partner))
 		save_message(message.from_user.id, partner,"bot", reply)
 
 		delay = random.randint(120, 300)

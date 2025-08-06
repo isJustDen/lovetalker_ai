@@ -43,7 +43,7 @@ def init_db():
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	user_id INTEGER,
 	name TEXT,
-	style TEXT DEFAULT "дружелбный")
+	style TEXT DEFAULT "дружелюбный)
 	""")
 
 
@@ -222,3 +222,10 @@ def get_partner_style(user_id: int, name: str) -> str:
 	conn.close()
 	return row[0] if row else 'дружелюбный'
 
+def update_partner_style(user_id: int, name: str, style: str):
+	conn = get_connection()
+	cur = conn.cursor()
+	cur.execute("UPDATE partners SET style = ? WHERE user_id = ? and name = ?",
+	            (style, user_id, name))
+	conn.commit()
+	conn.close()

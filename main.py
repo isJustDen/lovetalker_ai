@@ -11,7 +11,7 @@ from aiogram import Bot, Dispatcher, types
 
 
 from config import BOT_TOKEN
-from core.sheduler import init_scheduler, schedule_message
+from core.sheduler import init_scheduler, schedule_message, schedule_reminder
 from core.user_db import register_user, get_user, init_db, add_like, add_dislike, save_message, get_dialogs, set_mode, \
 	get_mode
 from core.ai_engine import generate_reply
@@ -77,6 +77,10 @@ async def chat_command(message: types.Message):
 	#имитируем диалог с самим ботом (позже будет с кандидатами)
 	save_message(message.from_user.id, 'user', "Начал чат с ботом")
 	await message.answer("📩 Диалог начат! Пиши сообщения, я их сохраню.")
+
+	# бот напомнит через какое-то время часов
+	schedule_reminder(bot, message.chat.id, "Как твои делишки, как настроение?")
+
 
 
 # обработчик команды /history

@@ -1,10 +1,16 @@
 # core/user_db.py
-
+import os
 import sqlite3
 
 # подключение к базе
 def get_connection():
-	return sqlite3.connect('data/users.db')
+	db_path = os.path.abspath('data/users.db')
+	print(f"Подключаемся к базе по пути: {db_path}")
+	conn = sqlite3.connect(db_path)
+	conn.execute("PRAGMA journal_mode=WAL")
+	conn.execute("PRAGMA synchronous=FULL")
+	return conn
+
 #------------------------------------------------------------------------------------------------------------------
 
 # инициализация таблицы users
@@ -12,6 +18,7 @@ def init_db():
 	conn = get_connection()
 	cur = conn.cursor()
 
+	cur.execute("DROP TABLE IF EXISTS paterns")  # Удаляем старую таблицу с опечаткой
 
 	#создание таблицы с информацией о поведении пользователя
 	cur.execute("""
@@ -29,8 +36,16 @@ def init_db():
 	except sqlite3.OperationalError:
 		pass
 
-	# Удаляем старую таблицу (для тестирования)
-	cur.execute("DROP TABLE IF EXISTS dialogs")
+
+#AI‑режим для разных собеседников
+	cur.execute("""
+	CREATE TABLE IF NOT EXISTS partners(
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	user_id INTEGER,
+	name TEXT,
+	style TEXT DEFAULT "дружелбный")
+	""")
+
 
 # таблица диалогов
 	cur.execute("""
@@ -174,3 +189,36 @@ def get_partners(user_id: int) -> list:
 	partners = [row[0] for row in cur.fetchall()]
 	conn.close()
 	return partners
+
+def add_partner(user_id: int, name: str, style: 'дружелюбный'):
+	"""Добавление информации о партнере в таблицу"""
+	conn = get_connection()
+	cur = conn.cursor()
+
+	# Сначала проверяем, существует ли уже такой партнер
+	cur.execute("SELECT 1 FROM partners WHERE user_id = ? AND name = ?", (user_id, name))
+	if cur.fetchone():
+		# Если существует - обновляем стиль
+		cur.execute("UPDATE partners SET style = ? WHERE user_id = ? AND name = ?",
+		            (style, user_id, name))
+	else:
+		# Если не существует - добавляем нового
+		cur.execute("INSERT INTO partners (user_id, name, style) VALUES (?, ?, ?)",
+		            (user_id, name, style))
+
+	conn.commit()
+	conn.close()
+
+def get_partner_style(user_id: int, name: str) -> str:
+	"""Задаёт стиль, с которым будет происходить общение с партнером"""
+	conn = get_connection()
+	cur = conn.cursor()
+
+	# Исправлена опечатка в имени столбца (было 'user_id')
+	cur.execute("SELECT style FROM partners WHERE user_id = ? AND name = ?",
+	            (user_id, name)
+	            )
+	row = cur.fetchone()
+	conn.close()
+	return row[0] if row else 'дружелюбный'
+

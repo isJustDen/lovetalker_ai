@@ -3,14 +3,15 @@ import datetime
 from typing import Dict, List
 from openai import OpenAI
 from config import OPENAI_API_KEY
-from core.user_db import get_user
+from core.user_db import get_user, get_partner_style
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-def generate_reply(history: List[Dict[str, str]], user_message: str, user_id: int) -> str:
+def generate_reply(history: List[Dict[str, str]], user_message: str, user_id: int = None, partner:str=None) -> str:
 	"""Генерация ответа GPT с учётом предпочтений"""
 	style_prompt = get_style_prompt(user_id) if user_id else ""
+	partner_prompt = get_partner_style(user_id, partner) if partner else "дружелюбно"
 	time_prompt = get_time_prompt()
 	messages = [
 		{
@@ -19,7 +20,7 @@ def generate_reply(history: List[Dict[str, str]], user_message: str, user_id: in
 				"Ты - Lovetalker AI 💬, остроумный, человекоподобный, кокетливый чат-бот по имени Денис. "
 				"Отвечай естественно и дружелюбно. Будь креативным. Не говори, что ты ИИ или бот, веди себя как человек. "
 				"Поддерживай беседу и задавай уточняющие вопросы, оставляй о себе хорошее впечатление, старайся понравиться, учитывай контекст."
-				f"{style_prompt} {time_prompt}"
+				f"Стиль: {style_prompt}. Текущее время {time_prompt}. Общайся в стиле: {partner_prompt}"
 			)
 		}
 	]

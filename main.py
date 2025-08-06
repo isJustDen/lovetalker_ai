@@ -14,12 +14,11 @@ from aiogram import Bot, Dispatcher, types
 from config import BOT_TOKEN
 from core.sheduler import init_scheduler, schedule_message, schedule_reminder
 from core.user_db import register_user, get_user, init_db, add_like, add_dislike, save_message, get_dialogs, set_mode, \
-	get_mode, get_connection, get_partners
+	get_mode, get_connection, get_partners, add_partner
 from core.ai_engine import generate_reply
 from core.utils import humanize_text
 
 # создаём экземпляр бота
-
 bot = Bot(token = BOT_TOKEN)
 dp = Dispatcher()
 #------------------------------------------------------------------------------------------------------------------
@@ -158,6 +157,29 @@ async def process_mode_callback(callback: types.CallbackQuery):
 	set_mode(callback.from_user.id, mode)
 	await callback.message.answer(f"✅ Режим общения изменён на: {mode}")
 	await callback.answer()
+
+
+@dp.message(Command('partner'))
+async def partner_command(message: types.Message):
+	args = message.text.split(maxsplit=2)
+	if len(args) < 3:
+		await message.answer("❗ Используй: /partner <имя> <стиль>")
+		return
+
+	name, style = args[1], args[2]
+	add_partner(message.from_user.id, name, style)
+	await message.answer(f"✅ Добавлен партнёр {name} со стилем: {style}")
+
+
+
+
+
+
+
+
+
+
+
 
 
 # ловим любое другое сообщение

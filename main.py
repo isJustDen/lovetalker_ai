@@ -139,9 +139,9 @@ async def handle_message(message: types.Message):
 
 	if mode == "assist":
 		# GPT предлагает несколько вариантов
-		reply1 = generate_reply(history, message.text + " (вариант 1)")
-		reply2 = generate_reply(history, message.text + " (вариант 2)")
-		reply3 = generate_reply(history, message.text + " (вариант 3)")
+		reply1 = generate_reply(history, message.text + " (вариант 1)", user_id=message.from_user.id)
+		reply2 = generate_reply(history, message.text + " (вариант 2)", user_id=message.from_user.id)
+		reply3 = generate_reply(history, message.text + " (вариант 3)", user_id=message.from_user.id)
 		await message.answer(f"✍️ Варианты ответа:\n")
 		await message.answer(f"1️⃣ {reply1}\n")
 		await message.answer(f"2️⃣ {reply2}\n")
@@ -149,7 +149,7 @@ async def handle_message(message: types.Message):
 
 	elif mode == "semi-auto":
 		# GPT отвечает, но можно поправить
-		reply = generate_reply(history, message.text)
+		reply = generate_reply(history, message.text, user_id=message.from_user.id)
 		save_message(message.from_user.id, "bot", reply)
 		await message.answer(f"⚡ Ответ: {reply}\n\n(Можешь переписать вручную)")
 
@@ -159,7 +159,7 @@ async def handle_message(message: types.Message):
 		await bot.send_chat_action(message.chat.id, "typing")	# статус "печатает..."
 		await asyncio.sleep(random.uniform(2, 10.0))
 
-		reply = humanize_text(generate_reply(history, message.text))
+		reply = humanize_text(generate_reply(history, message.text, user_id=message.from_user.id))
 
 		await bot.send_chat_action(message.chat.id, "typing")	# статус "печатает..."
 		await asyncio.sleep(random.uniform(5, 15.0))

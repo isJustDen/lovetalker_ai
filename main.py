@@ -9,12 +9,12 @@ import sqlite3
 
 from aiogram.filters import Command
 from aiogram import Bot, Dispatcher, types
-
+from core.utils import extract_fact
 
 from config import BOT_TOKEN
 from core.sheduler import init_scheduler, schedule_message, schedule_reminder
 from core.user_db import register_user, get_user, init_db, add_like, add_dislike, save_message, get_dialogs, set_mode, \
-	get_mode, get_connection, get_partners, add_partner, update_partner_style
+	get_mode, get_connection, get_partners, add_partner, update_partner_style, add_memory, get_memories
 from core.ai_engine import generate_reply
 from core.utils import humanize_text, detect_style
 
@@ -81,6 +81,7 @@ async def chat_command(message: types.Message):
 		return
 
 	partner = args[1].strip()
+
 	save_message(message.from_user.id, partner,'system',f"Начал чат с {partner}")
 	await message.answer(f"📩 Диалог  с {partner} начат! Пиши сообщения.")
 
@@ -159,8 +160,10 @@ async def process_mode_callback(callback: types.CallbackQuery):
 	await callback.answer()
 
 
+# обработчик команды /partner
 @dp.message(Command('partner'))
 async def partner_command(message: types.Message):
+	"""Задаём стиль для каждого(ой) собеседника(цы)"""
 	args = message.text.split(maxsplit=2)
 	if len(args) < 3:
 		await message.answer("❗ Используй: /partner <имя> <стиль>")
@@ -170,8 +173,40 @@ async def partner_command(message: types.Message):
 	add_partner(message.from_user.id, name, style)
 	await message.answer(f"✅ Добавлен партнёр {name} со стилем: {style}")
 
+#обработчик команды /remember
+@dp.message(Command("remember"))
+async def remember_command(message: types.Message):
+	args = message.text.split(maxsplit=2)
+	if len(args) < 3:
+		await message.answer("❗ Используй: /remember <имя> <факт>")
+		return
 
+	partner, fact = args[1], args[2]
+	add_memory(message.from_user.id, partner, fact)
+	await message.answer(f"✅ Запомнил про {partner}: {fact}")
 
+#обработчик команды /facts
+@dp.message(Command("facts"))
+async def show_facts(message: types.Message, partner: str = None):
+	"""Показывает сохраненные факты"""
+	args = message.text.split(maxsplit=1)
+	if len(args) < 2:
+		partners = get_partners(message.from_user.id)
+		if partners:
+			await message.answer("❗ Укажи имя партнера: /facts <имя>\nДоступные: " + ", ".join(partners))
+		else:
+			await message.answer("У тебя пока нет сохраненных диалогов")
+		return
+
+	partner = args[1].strip()
+	facts = get_memories(message.from_user.id, partner)
+
+	if facts:
+		# Форматируем вывод с нумерацией
+		response = f"📝 Факты о {partner}:\n" + "\n".join([f"{i+1}. {fact}" for i, fact in enumerate(facts)])
+		await message.answer(response)
+	else:
+		await message.answer(f"Нет сохраненных фактов о {partner}")
 
 
 
@@ -198,6 +233,19 @@ async def handle_message(message: types.Message):
 	""", (message.from_user.id,))
 	last_partner = cur.fetchone()
 	partner = last_partner[0] if last_partner else "bot"
+
+	# Автоматическое извлечение фактов из сообщения
+	if len(message.text)>30:
+		fact = extract_fact(message.text)
+		if fact and len(fact) > 10:
+			add_memory(message.from_user.id, partner, fact)
+
+	# Проверяем существование партнера и создаем его при необходимости
+	cur.execute("SELECT 1 FROM partners WHERE user_id = ? AND name = ?",
+	            (message.from_user.id, partner))
+	if not cur.fetchone():
+		add_partner(message.from_user.id, partner, 'Нейтральный')
+	conn.close()
 
 	args = message.text.split(maxsplit=1)
 

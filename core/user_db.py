@@ -2,6 +2,9 @@
 import os
 import sqlite3
 
+from core.utils import rank_facts, compress_text_to_facts
+
+
 # подключение к базе
 def get_connection():
 	db_path = os.path.abspath('data/users.db')
@@ -18,8 +21,6 @@ def init_db():
 	conn = get_connection()
 	cur = conn.cursor()
 
-	cur.execute("DROP TABLE IF EXISTS paterns")  # Удаляем старую таблицу с опечаткой
-
 	#создание таблицы с информацией о поведении пользователя
 	cur.execute("""
 	CREATE TABLE IF NOT EXISTS users(
@@ -31,19 +32,19 @@ def init_db():
 	)
 	""")
 	# Добавляем столбец mode, если он не существует
-	try:
-		cur.execute("ALTER TABLE users ADD COLUMN mode TEXT DEFAULT 'assist'")
-	except sqlite3.OperationalError:
-		pass
+	# try:
+	# 	cur.execute("ALTER TABLE users ADD COLUMN mode TEXT DEFAULT 'assist'")
+	# except sqlite3.OperationalError:
+	# 	pass
 
 
-#AI‑режим для разных собеседников
+#AI‑режим стиль для разных собеседников
 	cur.execute("""
 	CREATE TABLE IF NOT EXISTS partners(
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	user_id INTEGER,
 	name TEXT,
-	style TEXT DEFAULT "дружелюбный)
+	style TEXT DEFAULT "дружелюбный")
 	""")
 
 
@@ -63,11 +64,28 @@ def init_db():
 	except sqlite3.OperationalError:
 		pass
 
+	#Таблица для создания воспоминаний о пользователях(фактах)
+	cur.execute("""
+	CREATE TABLE IF NOT EXISTS memories(
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	user_id INTEGER,
+	partner_name TEXT,
+	fact TEXT)
+	""")
+
+	try:
+		cur.execute("ALTER TABLE memories ADD COLUMN partner_name TEXT")
+	except sqlite3.OperationalError:
+		pass  # Столбец уже существует
+
 	conn.commit()
 	conn.close()
+
+
 #------------------------------------------------------------------------------------------------------------------
-# регистрация нового пользователя
+#
 def register_user(user_id: int, name: str):
+	"""регистрация нового пользователя"""
 	conn = get_connection()
 	cur = conn.cursor()
 
@@ -82,8 +100,9 @@ def register_user(user_id: int, name: str):
 
 
 #------------------------------------------------------------------------------------------------------------------
-# получение профиля
+#
 def get_user(user_id: int):
+	"""получение профиля"""
 	conn = get_connection()
 	cur = conn.cursor()
 
@@ -93,10 +112,10 @@ def get_user(user_id: int):
 	conn.close()
 	return user
 
-
 #------------------------------------------------------------------------------------------------------------------
-# поставить лайк
+# Блок работа с количеством понравившихся
 def add_like(user_id:int):
+	"""поставить лайк"""
 	conn = get_connection()
 	cur = conn.cursor()
 
@@ -104,10 +123,8 @@ def add_like(user_id:int):
 	conn.commit()
 	conn.close()
 
-
-#------------------------------------------------------------------------------------------------------------------
-# поставить дизлайк
 def add_dislike(user_id:int):
+	"""поставить дизлайк"""
 	conn = get_connection()
 	cur = conn.cursor()
 
@@ -116,8 +133,9 @@ def add_dislike(user_id:int):
 	conn.close()
 #------------------------------------------------------------------------------------------------------------------
 
-#сохранение сообщений
+#Блок работы с сообщениями от пользователя
 def save_message(user_id: int, partner: str, sender: str, message: str):
+	"""сохранение сообщений"""
 	conn = get_connection()
 	cur = conn.cursor()
 
@@ -130,10 +148,8 @@ def save_message(user_id: int, partner: str, sender: str, message: str):
 	conn.close()
 
 
-#------------------------------------------------------------------------------------------------------------------
-
-# получить историю сообщений с пользователем
 def get_dialogs(user_id: int, partner:str, limit: int = 15):
+	"""получить историю ВСЕХ сообщений от пользователя"""
 	conn = get_connection()
 	cur = conn.cursor()
 
@@ -159,18 +175,17 @@ def get_dialogs(user_id: int, partner:str, limit: int = 15):
 #------------------------------------------------------------------------------------------------------------------
 
 
-#Установка мода общения
+#Блок работы с модами общения
 def set_mode(user_id:int, mode: str):
+	"""Установка мода общения"""
 	conn = get_connection()
 	cur = conn.cursor()
 	cur.execute("UPDATE users SET mode = ? WHERE id = ?", (mode, user_id))
 	conn.commit()
 	conn.close()
-#------------------------------------------------------------------------------------------------------------------
 
-
-# Запрос мода общения
 def get_mode(user_id: int):
+	"""Запрос мода общения"""
 	conn = get_connection()
 	cur = conn.cursor()
 	cur.execute("SELECT mode FROM users WHERE id = ?", (user_id, ))
@@ -178,8 +193,10 @@ def get_mode(user_id: int):
 	conn.close()
 	return row[0] if row else 'assist'
 
-#Функция для получения списка всех партнеров
+#------------------------------------------------------------------------------------------------------------------
+#Блок работы с партнёрами
 def get_partners(user_id: int) -> list:
+	"""Функция для получения списка всех партнеров"""
 	conn = get_connection()
 	cur = conn.cursor()
 	cur.execute("""
@@ -209,6 +226,9 @@ def add_partner(user_id: int, name: str, style: 'дружелюбный'):
 	conn.commit()
 	conn.close()
 
+
+#------------------------------------------------------------------------------------------------------------------
+#Блок работы со стилем общения с собеседниками
 def get_partner_style(user_id: int, name: str) -> str:
 	"""Задаёт стиль, с которым будет происходить общение с партнером"""
 	conn = get_connection()
@@ -229,3 +249,53 @@ def update_partner_style(user_id: int, name: str, style: str):
 	            (style, user_id, name))
 	conn.commit()
 	conn.close()
+
+# ------------------------------------------------------------------------------------------------------------------
+#Блок работы с воспоминаниями для бота#
+def add_memory(user_id: int, partner:str, text: str):
+	"""Добавление воспоминаний в SQL"""
+	conn = get_connection()
+	cur = conn.cursor()
+
+	# Получаем текущие факты
+	cur.execute(
+		"SELECT fact FROM memories WHERE user_id=? AND partner_name=?",
+		(user_id, partner))
+	existing_facts = [row[0] for row in cur.fetchall()]
+
+	# Сжимаем текст если нужно
+	if len(text) > 1500:
+		new_facts = compress_text_to_facts(text, existing_facts)
+	else:
+		new_facts = [text]
+
+	# Объединяем и ранжируем
+	all_facts = existing_facts + new_facts
+	top_facts = rank_facts(all_facts)
+
+	# Очищаем старые записи
+	cur.execute("DELETE FROM memories WHERE user_id = ? AND partner_name=?",
+	            (user_id, partner))
+
+	# Сохраняем новые
+	for fact in top_facts:
+		cur.execute("INSERT INTO memories (user_id, partner_name, fact) VALUES (?, ?, ?)",
+		            (user_id, partner, fact))
+	conn.commit()
+	conn.close()
+
+def get_memories(user_id: int, partner: str):
+	"""Получение всех воспоминаний о пользователе"""
+	conn = get_connection()
+	cur = conn.cursor()
+	cur.execute("""
+	SELECT fact FROM memories 
+	WHERE user_id = ? AND partner_name = ?
+	ORDER BY id DESC
+	LIMIT 10
+	""",(user_id, partner))
+	rows = cur.fetchall()
+	conn.close()
+	return [r[0] for r in rows]
+
+# ------------------------------------------------------------------------------------------------------------------
